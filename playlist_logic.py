@@ -193,9 +193,10 @@ def search_songs(
     filtered: List[Song] = []
 
     for song in songs:
-        value = str(song.get(field, "")).lower()
-        # Fix: q in value (query is substring of field), not value in q
-        if value and q in value:
+        # Fix: strip hyphens so "lofi" matches "lo-fi" style titles
+        value = str(song.get(field, "")).lower().replace("-", "")
+        q_normalized = q.replace("-", "")
+        if value and q_normalized in value:
             filtered.append(song)
 
     return filtered

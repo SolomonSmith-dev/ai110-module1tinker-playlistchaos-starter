@@ -23,7 +23,7 @@ def normalize_artist(artist: str) -> str:
     """Normalize an artist name for comparisons."""
     if not artist:
         return ""
-    return artist.strip().lower()
+    return artist.strip()
 
 
 def normalize_genre(genre: str) -> str:

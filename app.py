@@ -355,7 +355,9 @@ def history_section():
         return
 
     summary = history_summary(history)
-    st.write("Recent picks by mood:", summary)
+    # Fix: passing a dict to st.write triggers pyarrow dataframe detection;
+    # use st.json or format as string to avoid the dependency
+    st.write("Recent picks by mood: " + str(summary))
 
     show_details = st.checkbox("Show full history")
     if show_details:

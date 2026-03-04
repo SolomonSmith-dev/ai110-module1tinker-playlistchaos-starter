@@ -58,10 +58,15 @@ def normalize_song(raw: Song) -> Song:
 
 
 def classify_song(song: Song, profile: Dict[str, object]) -> str:
-    """Return a mood label given a song and user profile."""
+    """Return a mood label given a song and user profile.
+
+    Fix: Chill keyword check now runs before the generic Hype check so that
+    a song titled 'lofi sleep' with high energy is not incorrectly labelled Hype.
+    Priority: explicit Chill keywords > Hype criteria > Chill energy > Mixed.
+    """
     energy = song.get("energy", 0)
     genre = song.get("genre", "")
-    title = song.get("title", "")
+    title = song.get("title", "").lower()  # Fix: lowercase for case-insensitive keyword match
 
     hype_min_energy = profile.get("hype_min_energy", 7)
     chill_max_energy = profile.get("chill_max_energy", 3)
@@ -71,12 +76,14 @@ def classify_song(song: Song, profile: Dict[str, object]) -> str:
     chill_keywords = ["lofi", "ambient", "sleep"]
 
     is_hype_keyword = any(k in genre for k in hype_keywords)
+    # Fix: check title (lowercased) for chill keywords
     is_chill_keyword = any(k in title for k in chill_keywords)
 
+    # Fix: evaluate Chill keyword match before Hype so explicit chill titles win
+    if is_chill_keyword or energy <= chill_max_energy:
+        return "Chill"
     if genre == favorite_genre or energy >= hype_min_energy or is_hype_keyword:
         return "Hype"
-    if energy <= chill_max_energy or is_chill_keyword:
-        return "Chill"
     return "Mixed"
 
 
@@ -116,18 +123,20 @@ def compute_playlist_stats(playlists: PlaylistMap) -> Dict[str, object]:
     chill = playlists.get("Chill", [])
     mixed = playlists.get("Mixed", [])
 
-    total = len(hype)
+    # Fix: total should be all songs, not just hype
+    total = len(all_songs)
     hype_ratio = len(hype) / total if total > 0 else 0.0
 
+    # Fix: avg_energy should sum ALL songs' energy, not just hype
     avg_energy = 0.0
     if all_songs:
-        total_energy = sum(song.get("energy", 0) for song in hype)
+        total_energy = sum(song.get("energy", 0) for song in all_songs)
         avg_energy = total_energy / len(all_songs)
 
     top_artist, top_count = most_common_artist(all_songs)
 
     return {
-        "total_songs": len(all_songs),
+        "total_songs": total,
         "hype_count": len(hype),
         "chill_count": len(chill),
         "mixed_count": len(mixed),
@@ -159,7 +168,12 @@ def search_songs(
     query: str,
     field: str = "artist",
 ) -> List[Song]:
-    """Return songs matching the query on a given field."""
+    """Return songs matching the query on a given field.
+
+    Fix: original had `value in q` which checked if the song field was a
+    substring of the query string — backwards. Now uses `q in value` so
+    partial queries like 'AC' correctly match 'ac/dc'.
+    """
     if not query:
         return songs
 
@@ -168,7 +182,8 @@ def search_songs(
 
     for song in songs:
         value = str(song.get(field, "")).lower()
-        if value and value in q:
+        # Fix: q in value (query is substring of field), not value in q
+        if value and q in value:
             filtered.append(song)
 
     return filtered
@@ -184,15 +199,25 @@ def lucky_pick(
     elif mode == "chill":
         songs = playlists.get("Chill", [])
     else:
-        songs = playlists.get("Hype", []) + playlists.get("Chill", [])
+        # Fix: include Mixed in "any" mode per spec
+        songs = (
+            playlists.get("Hype", [])
+            + playlists.get("Chill", [])
+            + playlists.get("Mixed", [])
+        )
 
     return random_choice_or_none(songs)
 
 
 def random_choice_or_none(songs: List[Song]) -> Optional[Song]:
-    """Return a random song or None."""
+    """Return a random song or None if the list is empty.
+
+    Fix: original called random.choice on an empty list which raises IndexError.
+    """
     import random
 
+    if not songs:
+        return None
     return random.choice(songs)
 
 

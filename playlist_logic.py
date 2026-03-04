@@ -57,32 +57,44 @@ def normalize_song(raw: Song) -> Song:
     }
 
 
+HYPE_GENRE_KEYWORDS = ["rock", "punk", "party"]
+CHILL_TITLE_KEYWORDS = ["lofi", "ambient", "sleep"]
+
+
+def _is_hype(energy, genre, favorite_genre, hype_min_energy) -> bool:
+    """Return True if the song meets any Hype criterion."""
+    return (
+        energy >= hype_min_energy
+        or genre == favorite_genre
+        or any(k in genre for k in HYPE_GENRE_KEYWORDS)
+    )
+
+
+def _is_chill(energy, title, chill_max_energy) -> bool:
+    """Return True if the song meets any Chill criterion."""
+    return (
+        energy <= chill_max_energy
+        or any(k in title for k in CHILL_TITLE_KEYWORDS)
+    )
+
+
 def classify_song(song: Song, profile: Dict[str, object]) -> str:
     """Return a mood label given a song and user profile.
 
-    Fix: Chill keyword check now runs before the generic Hype check so that
-    a song titled 'lofi sleep' with high energy is not incorrectly labelled Hype.
-    Priority: explicit Chill keywords > Hype criteria > Chill energy > Mixed.
+    Chill is evaluated first so explicit chill-keyword titles (e.g. 'lofi beats')
+    are not overridden by a high energy value triggering Hype.
     """
     energy = song.get("energy", 0)
     genre = song.get("genre", "")
-    title = song.get("title", "").lower()  # Fix: lowercase for case-insensitive keyword match
+    title = song.get("title", "").lower()
 
     hype_min_energy = profile.get("hype_min_energy", 7)
     chill_max_energy = profile.get("chill_max_energy", 3)
     favorite_genre = profile.get("favorite_genre", "")
 
-    hype_keywords = ["rock", "punk", "party"]
-    chill_keywords = ["lofi", "ambient", "sleep"]
-
-    is_hype_keyword = any(k in genre for k in hype_keywords)
-    # Fix: check title (lowercased) for chill keywords
-    is_chill_keyword = any(k in title for k in chill_keywords)
-
-    # Fix: evaluate Chill keyword match before Hype so explicit chill titles win
-    if is_chill_keyword or energy <= chill_max_energy:
+    if _is_chill(energy, title, chill_max_energy):
         return "Chill"
-    if genre == favorite_genre or energy >= hype_min_energy or is_hype_keyword:
+    if _is_hype(energy, genre, favorite_genre, hype_min_energy):
         return "Hype"
     return "Mixed"
 
